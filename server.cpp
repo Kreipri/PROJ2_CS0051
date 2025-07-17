@@ -37,10 +37,12 @@ struct Player {
 vector<Player> players;
 vector<int> deck;
 mutex playerMutex;
-mutex cardMutex;
+mutex printMutex;
 int roundNo = 1;
+barrier gameBarrier(MAX_PLAYERS);
 latch gameStart(MAX_PLAYERS);
-
+latch gameLatch(MAX_PLAYERS);
+latch gameEnd(1);
 
 string cts(int val) {
     if (val <= 10) return to_string(val);
@@ -69,7 +71,7 @@ barrier roundBarrier(MAX_PLAYERS, [](){//called before each round
     cout<<GREY<<BOLD<<"Current players' cards: "<<RESET<<endl;
 
     for(int i = 0; i < MAX_PLAYERS; i++){
-        cout<<playerColor(i+1)<<players[i].name<<"'s Cards: "<<endl;
+        cout<<playerColor(i+1)<<players[i].name<<"'s Cards: "<<RESET<<endl;
         for(auto& c : players[i].cards){
             cout<<cts(c)<<" ";
         }
@@ -82,8 +84,6 @@ barrier roundBarrier(MAX_PLAYERS, [](){//called before each round
 
     if(roundNo <= 3){
         cout<<BOLD<<"[ROUND "<<roundNo<<" START!]"<<RESET<<endl;
-    }else if(roundNo > 3){
-        cout<<"REACHED MAX\n";
     }
 });
 
@@ -97,44 +97,41 @@ void generateCards() {
 
 void broadcast(const string& msg)
 {
-    lock_guard<mutex> lock(playerMutex);
+    lock_guard<mutex> lock(printMutex);
     for (auto& p : players) {
         send(p.socket, msg.c_str(), msg.size(), 0);
     }
 }
 
-void handle_player(Player& p) {
+void handle_player(int id) {
+    Player& p = players[id];
     int card;
     
     char buffer[BUFFER_SIZE]{};
     
-    /* Get client name */
-    if (recv(p.socket, buffer, BUFFER_SIZE, 0) <= 0) {
+    //NEW ADD
+    int bytes = recv(p.socket, buffer, BUFFER_SIZE - 1, 0);  // leave room for '\0'
+    if (bytes <= 0) {
         close(p.socket);
         return;
     }
+    buffer[bytes] = '\0';  // Null-terminate it
     p.name = buffer;
+    //
     
     string joinMsg = p.name + " has joined the game.\n";
     broadcast(joinMsg);
     cout << joinMsg;
     
-    cout << "Thread " << p.name << " reached gameStart latch.\n";
+    cout << "Thread " << id << " reached gameStart.\n";
     gameStart.arrive_and_wait();
-    cout << "Thread " << p.name << " passed gameStart latch.\n";
-    
-    if(p.name == players[0].name){
-        cout << "Thread " << p.name << " reached rounds\n";
-        string r1= "[ROUND 1 STARTING]\n";
-        broadcast(r1);
-        cout<<r1;
-    }
+    cout << "Thread " << id << " passed gameStart.\n";
   
     while (roundNo <= 3) {
         {
-            cout << "Thread " << p.name << " reached while loop\n";
-            lock_guard<mutex> lock(cardMutex);
-            cout << "Thread " << p.name << " acquired lock\n";
+            cout << "Thread " << id << " reached while loop\n";
+            lock_guard<mutex> lock(playerMutex);
+            cout << "Thread " << id << " acquired lock\n";
             //memset(buffer, 0, BUFFER_SIZE);
 
             // Prompt player
@@ -151,15 +148,21 @@ void handle_player(Player& p) {
             deck.pop_back();
             p.cards.push_back(card);
 
-            string drawMsg = "[Round " + to_string(roundNo) + "] " + p.name + " drew " + cts(card) + "\n" + RESET;
+            string drawMsg = "[Round " + to_string(roundNo) + "] " + playerColor(id) + p.name + " drew " + cts(card) + RESET + "\n";
             broadcast(drawMsg);
             cout<<drawMsg<<endl;
-            cout << "Thread " << p.name << " release lock\n";
+            cout << "Thread " << id << " released lock\n";
         }
 
         roundBarrier.arrive_and_wait();
     }
-    return;
+    cout<<"Waiting for scores"<<endl;    
+    gameLatch.arrive_and_wait(); //ADDING SCORES TIME
+    cout<<"Finished waiting for scores"<<endl;        
+    
+    cout<<"Waiting for end"<<endl;    
+    gameEnd.wait();
+    cout<<"Ending! "<<endl;    
 }
 
 void game_server() {
@@ -203,39 +206,53 @@ void game_server() {
                 break;
             }
             
-            Player* new_player = new Player{client_socket};
-            {
-                lock_guard<mutex> lock(playerMutex);
-                players.push_back(*new_player);
-            }
-            playerThreads.emplace_back([=]() {
-                handle_player(*new_player);
-                delete new_player;
-            });
+            players.push_back({client_socket});
+            playerThreads.emplace_back(handle_player, players.size() - 1);
+            cout<<"he still here."<<endl;
         }
+        cout<<"he done here."<<endl;
+        if(players.size() == MAX_PLAYERS)break;
     }
-
+    cout<<"Main while finished."<<endl;
     
-    for (auto& t : playerThreads) {
-        if (t.joinable()) t.join();
-    }
-
-    cout<<"\nAll rounds finished. Calculating winner...\n";
-    broadcast("\nAll rounds finished. Calculating winner...\n");
-
+    cout<<"Waiting game start."<<endl;
+    gameStart.wait();
+    cout<<"ROUND 1 STARTING"<<endl;
+    
+    gameLatch.wait();
+    string scoreMsg = "\nAll rounds finished. Calculating winner... ETO BA UN\n";
+    broadcast(scoreMsg);
+    cout<<scoreMsg;
+    
+    
+    cout<<"Before map?!?!"<<endl;
     // Determine winner
     map<string, int> scores;
+    
+    cout<<"Before for loop"<<endl;
     for (auto& p : players) {
+        cout<<"im in here!"<<endl;
         int high = *max_element(p.cards.begin(), p.cards.end());
         scores[p.name] = high;
     }
 
+    cout<<"Past for loop"<<endl;
     auto winner = max_element(scores.begin(), scores.end(),
         [](auto& a, auto& b) { return a.second < b.second; });
-
+    
+    cout<<"Past auto winner"<<endl;
+    
     string result = "Winner: " + winner->first + " with card " + cts(winner->second) + "\n";
+    cout<<"got the result!"<<endl;
     broadcast(result);
     cout << result;
+    
+    gameEnd.arrive_and_wait();
+    
+    for (auto& t : playerThreads) {
+        if (t.joinable()) t.join();
+    }
+    cout<<"Theads joined."<<endl;
 
     for (auto& p : players) close(p.socket);
     close(server_socket);
@@ -247,4 +264,3 @@ int main() {
     game_server();
     return 0;
 }
-

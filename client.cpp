@@ -50,6 +50,10 @@ int main() {
     std::cout << "Connected to server!\nEnter your name: ";
     std::string name;
     std::getline(std::cin, name);
+    while (name.empty()) {
+        std::cout << "Name can't be empty. Try again: ";
+        std::getline(std::cin, name);
+    }
     send(client_socket, name.c_str(), name.length(), 0);
 
     // Ready up
@@ -59,8 +63,8 @@ int main() {
     //send(client_socket, ready.c_str(), ready.length(), 0);
 
     // Start receiver thread
-    //pthread_create(&recv_thread, nullptr, receive_messages, nullptr);
-    //pthread_detach(recv_thread);
+    pthread_create(&recv_thread, nullptr, receive_messages, nullptr);
+    pthread_detach(recv_thread);
 
     // Main input loop (optional additional commands)
     while (true) {
