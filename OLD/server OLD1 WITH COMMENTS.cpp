@@ -14,19 +14,20 @@
 #define BUFFER_SIZE 1024
 #define MAX_PLAYERS 2
 
+//COLORS
+#define RESET       "\033[0m"
+#define RED         "\033[31m"
+#define GREEN       "\033[32m"
+#define YELLOW      "\033[33m"
+#define BLUE        "\033[34m"
+#define MAGENTA     "\033[35m"
+#define CYAN        "\033[36m"
+#define BOLD        "\033[1m"
+#define UNDERLINE   "\033[4m"
+#define GREY        "\033[38;5;250m"
+
 using namespace std;
 
-const string RESET     = "\033[0m";
-const string RED       = "\033[31m";
-const string GREEN     = "\033[32m";
-const string YELLOW    = "\033[33m";
-const string BLUE      = "\033[34m";
-const string MAGENTA   = "\033[35m";
-const string CYAN      = "\033[36m";
-const string BOLD      = "\033[1m";
-const string UNDERLINE = "\033[4m";
-const string GREY      = "\033[38;5;250m";
- 
 struct Player {
     int socket;
     string name;
@@ -54,56 +55,35 @@ string cts(int val) {
 
 string playerColor(int num){
     switch(num){
-        case 0: return BLUE; 
-        case 1: return MAGENTA; 
-        case 2: return CYAN; 
-        case 3: return YELLOW;
+        case 1: return BLUE; 
+        case 2: return MAGENTA; 
+        case 3: return CYAN; 
+        case 4: return YELLOW;
         default: return RESET; 
     }
 }
 
-void broadcast(const string& msg)
-{
-    lock_guard<mutex> lock(printMutex);
-    for (auto& p : players) {
-        send(p.socket, msg.c_str(), msg.size(), 0);
-    }
-}
-
 barrier roundBarrier(MAX_PLAYERS, [](){//called before each round
-    string roundMsg;
-    
-    roundMsg = BOLD + "[ROUND " + to_string(roundNo) + " END!]\n" + RESET;
-    cout<<roundMsg;
-    broadcast(roundMsg);
-    
-    this_thread::sleep_for(chrono::seconds(1));
-  
+    cout<<BOLD<<"[ROUND "<<roundNo<<" END!]\n"<<RESET<<endl;
+    this_thread::sleep_for(chrono::seconds(2));
+
 
     cout<<GREY<<BOLD<<"Current players' cards: "<<RESET<<endl;
 
     for(int i = 0; i < MAX_PLAYERS; i++){
-        string msg = playerColor(i) + players[i].name + "'s Cards: \n" + RESET;
-        cout<<msg;
-        send(players[i].socket, msg.c_str(), msg.size(), 0);
-        string cards = "";
+        cout<<playerColor(i+1)<<players[i].name<<"'s Cards: "<<RESET<<endl;
         for(auto& c : players[i].cards){
-            cards += cts(c) + " ";
+            cout<<cts(c)<<" ";
         }
-        send(players[i].socket, cards.c_str(), cards.size(), 0);
-        cout<<cards;
         cout<<"\n"<<RESET;
         this_thread::sleep_for(chrono::seconds(1));
     }
     cout<<"\n";
 
     roundNo++;
-    
-    
+
     if(roundNo <= 3){
-        roundMsg = BOLD + "[ROUND " + to_string(roundNo) + " START!]\n" + RESET;
-        cout<<roundMsg;
-        broadcast(roundMsg);
+        cout<<BOLD<<"[ROUND "<<roundNo<<" START!]"<<RESET<<endl;
     }
 });
 
@@ -113,6 +93,14 @@ void generateCards() {
             deck.push_back(val);
 
     shuffle(deck.begin(), deck.end(), mt19937{random_device{}()});
+}
+
+void broadcast(const string& msg)
+{
+    lock_guard<mutex> lock(printMutex);
+    for (auto& p : players) {
+        send(p.socket, msg.c_str(), msg.size(), 0);
+    }
 }
 
 void handle_player(int socket, int id) {
@@ -133,31 +121,46 @@ void handle_player(int socket, int id) {
     broadcast(joinMsg);
     cout << joinMsg;
     
+    cout << "Thread " << id << " reached gameStart.\n";
     gameStart.arrive_and_wait();
+    cout << "Thread " << id << " passed gameStart.\n";
   
     while (roundNo <= 3) {
         {
+            cout << "Thread " << id << " reached while loop\n";
             lock_guard<mutex> lock(playerMutex);
+            cout << "Thread " << id << " acquired lock\n";
+            //memset(buffer, 0, BUFFER_SIZE);
+
+            // Prompt player
+            //string prompt = "[Round " + to_string(roundNo) + "] " + p.name + ", press any key to draw:\n";
+            //send(p.socket, prompt.c_str(), prompt.size(), 0);
+
+            // Wait for any input
+            //if (recv(p.socket, buffer, BUFFER_SIZE, 0) <= 0) {
+            //    close(p.socket);
+            //    return;
+            //}
             
-            string drawMsg;
             card = deck.back();
             deck.pop_back();
             p.cards.push_back(card);
-            
-            drawMsg = "[ROUND " + to_string(roundNo) + "] " + playerColor(id) + p.name  + " is drawing a card...\n" + RESET;
+
+            string drawMsg = "[Round " + to_string(roundNo) + "] " + playerColor(id) + p.name + " drew " + cts(card) + RESET + "\n";
             broadcast(drawMsg);
-            cout<<drawMsg;
-            
-            cout<<"[ROUND " + to_string(roundNo) + "] " + playerColor(id) + p.name + " drew " + cts(card) + RESET + "\n";
-            drawMsg = "[ROUND " + to_string(roundNo) + "] " + playerColor(id) + "You drew " + cts(card) + RESET + "\n";
-            send(p.socket, drawMsg.c_str(), drawMsg.size(), 0);
+            cout<<drawMsg<<endl;
+            cout << "Thread " << id << " released lock\n";
         }
 
         roundBarrier.arrive_and_wait();
     }
+    cout<<"Waiting for scores"<<endl;    
     gameLatch.arrive_and_wait(); //ADDING SCORES TIME
- 
+    cout<<"Finished waiting for scores"<<endl;        
+    
+    cout<<"Waiting for end"<<endl;    
     gameEnd.wait();
+    cout<<"Ending! "<<endl;    
 }
 
 void game_server() {
@@ -197,30 +200,41 @@ void game_server() {
             continue;
         }
 
+        cout << "Creating thread for player " << connected_players << "...\n";
         playerThreads.emplace_back(handle_player, client_socket, connected_players);
         ++connected_players;
     }
-    gameStart.wait();
+    cout<<"Main while finished."<<endl;
     
-    gameLatch.wait();	
-    string scoreMsg = GREY + "\nAll rounds finished. Calculating winner...\n" + RESET;
+    cout<<"Waiting game start."<<endl;
+    gameStart.wait();
+    cout<<"ROUND 1 STARTING"<<endl;
+    
+    gameLatch.wait();
+    string scoreMsg = "\nAll rounds finished. Calculating winner...\n";
     broadcast(scoreMsg);
     cout<<scoreMsg;
     
     
-
+    cout<<"Before map?!?!"<<endl;
     // Determine winner
     map<string, int> scores;
     
+    cout<<"Before for loop"<<endl;
     for (auto& p : players) {
+        cout<<"im in here!"<<endl;
         int high = *max_element(p.cards.begin(), p.cards.end());
         scores[p.name] = high;
     }
 
+    cout<<"Past for loop"<<endl;
     auto winner = max_element(scores.begin(), scores.end(),
         [](auto& a, auto& b) { return a.second < b.second; });
     
-    string result = BOLD + GREEN + "Winner: " + winner->first + " with card " + cts(winner->second) + "\n"+ RESET;
+    cout<<"Past auto winner"<<endl;
+    
+    string result = "Winner: " + winner->first + " with card " + cts(winner->second) + "\n";
+    cout<<"got the result!"<<endl;
     broadcast(result);
     cout << result;
     
@@ -229,10 +243,10 @@ void game_server() {
     for (auto& t : playerThreads) {
         if (t.joinable()) t.join();
     }
+    cout<<"Theads joined."<<endl;
 
     for (auto& p : players) close(p.socket);
     close(server_socket);
-     
 }
 int main() {
     players.clear();

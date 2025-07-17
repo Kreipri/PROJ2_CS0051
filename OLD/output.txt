@@ -1,0 +1,81 @@
+Preparing game setup...
+
+Server listening on port 8080, waiting for players...
+Creating thread for player 0...
+biya has joined the game.
+Thread 0 reached gameStart.
+Creating thread for player 1...
+Main while finished.
+Waiting game start.
+niyo has joined the game.
+Thread 1 reached gameStart.
+Thread 1 passed gameStart.
+Thread 1 reached while loop
+Thread 1 acquired lock
+Thread ROUND 1 STARTING0 passed gameStart.
+[Round 1] niyo drew 8
+
+Thread Thread 1 released lock
+0 reached while loop
+Thread 0 acquired lock
+
+[Round 1] biya drew 10
+
+Thread 0 released lock
+[ROUND 1 END!]
+
+Current players' cards: 
+biya's Cards: 
+10 
+niyo's Cards: 
+8 
+
+[ROUND 2 START!]
+Thread 1 reached while loop
+Thread 1 acquired lock
+[Round 2] niyo drew 3
+
+Thread 1 released lock
+Thread 0 reached while loop
+Thread 0 acquired lock
+[Round 2] biya drew 6
+
+Thread 0 released lock
+[ROUND 2 END!]
+
+Current players' cards: 
+biya's Cards: 
+10 6 
+niyo's Cards: 
+8 3 
+
+[ROUND 3 START!]
+Thread 0 reached while loop
+Thread 0 acquired lock
+Thread 1 reached while loop
+[Round 3] biya drew 7
+
+Thread 0 released lock
+Thread 1 acquired lock
+[Round 3] niyo drew 8
+
+Thread 1 released lock
+[ROUND 3 END!]
+
+Current players' cards: 
+biya's Cards: 
+10 6 7 
+niyo's Cards: 
+8 3 8 
+
+Waiting for scores
+Waiting for scores
+Finished waiting for scores
+Waiting for end
+Finished waiting for scores
+Waiting for end
+
+All rounds finished. Calculating winner...
+Before map?!?!
+Before for loop
+im in here!

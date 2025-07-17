@@ -8,6 +8,8 @@
 #define PORT 8080
 #define BUFFER_SIZE 1024
 
+using namespace std;
+
 int client_socket;
 
 void* receive_messages(void* arg) {
@@ -16,12 +18,12 @@ void* receive_messages(void* arg) {
         memset(buffer, 0, BUFFER_SIZE);
         int bytes_received = recv(client_socket, buffer, BUFFER_SIZE, 0);
         if (bytes_received <= 0) {
-            std::cout << "\nDisconnected from server." << std::endl;
+            cout << "\nDisconnected from server." << endl;
             close(client_socket);
             exit(0);
         }
 
-        std::cout << buffer << std::endl;
+        cout << buffer << endl;
     }
     return nullptr;
 }
@@ -30,11 +32,11 @@ int main() {
     struct sockaddr_in server_addr;
     pthread_t recv_thread;
     
-    std::cout<<"Connecting...\n";
+    cout << "Connecting...\n";
 
     client_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (client_socket == -1) {
-        std::cerr << "Socket creation failed." << std::endl;
+        cerr << "Socket creation failed." << endl;
         return 1;
     }
 
@@ -43,23 +45,23 @@ int main() {
     inet_pton(AF_INET, SERVER_IP, &server_addr.sin_addr);
 
     if (connect(client_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
-        std::cerr << "Connection to server failed." << std::endl;
+        cerr << "Connection to server failed." << endl;
         return 1;
     }
 
-    std::cout << "Connected to server!\nEnter your name: ";
-    std::string name;
-    std::getline(std::cin, name);
+    cout << "Connected to server!\nEnter your name: ";
+    string name;
+    getline(cin, name);
     while (name.empty()) {
-        std::cout << "Name can't be empty. Try again: ";
-        std::getline(std::cin, name);
+        cout << "Name can't be empty. Try again: ";
+        getline(cin, name);
     }
     send(client_socket, name.c_str(), name.length(), 0);
 
     // Ready up
-    //std::cout << "[Press 1 to ready up!]" << std::endl;
-    //std::string ready;
-    //std::getline(std::cin, ready);
+    //cout << "[Press 1 to ready up!]" << endl;
+    //string ready;
+    //getline(cin, ready);
     //send(client_socket, ready.c_str(), ready.length(), 0);
 
     // Start receiver thread
@@ -68,8 +70,8 @@ int main() {
 
     // Main input loop (optional additional commands)
     while (true) {
-        std::string input;
-        std::getline(std::cin, input);
+        string input;
+        getline(cin, input);
 
         if (input == "exit") {
             send(client_socket, input.c_str(), input.length(), 0);
