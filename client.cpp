@@ -1,3 +1,5 @@
+// enabled ready up code block
+
 #include <iostream>
 #include <cstring>
 #include <unistd.h>
@@ -59,10 +61,10 @@ int main() {
     send(client_socket, name.c_str(), name.length(), 0);
 
     // Ready up
-    //cout << "[Press 1 to ready up!]" << endl;
-    //string ready;
-    //getline(cin, ready);
-    //send(client_socket, ready.c_str(), ready.length(), 0);
+    cout << "[Press 1 to ready up!]" << endl;
+    string ready;
+    getline(cin, ready);
+    send(client_socket, ready.c_str(), ready.length(), 0);
 
     // Start receiver thread
     pthread_create(&recv_thread, nullptr, receive_messages, nullptr);
